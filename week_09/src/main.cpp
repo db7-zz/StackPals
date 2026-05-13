@@ -3,7 +3,7 @@
 
 using namespace m5avatar;
 
-// 实例化 Avatar 对象，这就是屏幕上那张脸
+// 实例化 Avatar 对象，这就是屏幕上那张脸1
 Avatar avatar;
 
 // 定义番茄钟的三个状态
