@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StackPals— M5Stack 番茄钟</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=Noto+Serif+SC:wght@300;400;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0a0a0f;
+    --bg2: #111118;
+    --bg3: #18181f;
+    --surface: #1e1e28;
+    --border: rgba(255,255,255,0.08);
+    --accent: #4cffa0;
+    --accent2: #ffd946;
+    --accent3: #ff6b6b;
+    --text: #f0f0f0;
+    --muted: #888;
+    --font-display: 'Syne', sans-serif;
+    --font-body: 'Noto Serif SC', serif;
+    --font-mono: 'Space Mono', monospace;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    line-height: 1.7;
+    overflow-x: hidden;
+  }
+
+  /* ── NOISE TEXTURE ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    opacity: 0.4;
+  }
+
+  .z { position: relative; z-index: 1; }
+
+  /* ── NAV ── */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1.2rem 3rem;
+    background: rgba(10,10,15,0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-logo {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 1.1rem;
+    letter-spacing: -0.02em;
+    color: var(--accent);
+  }
+  .nav-logo span { color: var(--text); }
+  .nav-links { display: flex; gap: 2.5rem; list-style: none; }
+  .nav-links a {
+    font-family: var(--font-mono); font-size: 0.78rem;
+    color: var(--muted); text-decoration: none; letter-spacing: 0.05em;
+    text-transform: uppercase; transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--accent); }
+
+  /* ── HERO ── */
+  .hero {
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    padding: 8rem 3rem 4rem;
+    gap: 4rem;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .hero-tag {
+    display: inline-block;
+    font-family: var(--font-mono); font-size: 0.72rem;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--accent); border: 1px solid rgba(76,255,160,0.3);
+    padding: 0.3rem 0.9rem; border-radius: 2px;
+    margin-bottom: 1.5rem;
+    animation: fadeUp 0.6s ease both;
+  }
+  .hero h1 {
+    font-family: var(--font-display);
+    font-size: clamp(2.8rem, 5vw, 4.8rem);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    animation: fadeUp 0.6s 0.1s ease both;
+  }
+  .hero h1 em {
+    font-style: normal;
+    color: var(--accent);
+  }
+  .hero-sub {
+    margin-top: 1.5rem;
+    font-size: 1.1rem; color: var(--muted);
+    max-width: 420px;
+    line-height: 1.8;
+    animation: fadeUp 0.6s 0.2s ease both;
+  }
+  .hero-cta {
+    margin-top: 2.5rem;
+    display: flex; gap: 1rem; flex-wrap: wrap;
+    animation: fadeUp 0.6s 0.3s ease both;
+  }
+  .btn {
+    font-family: var(--font-mono); font-size: 0.8rem;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 0.85rem 2rem; border-radius: 3px;
+    text-decoration: none; cursor: pointer;
+    transition: all 0.25s;
+    display: inline-flex; align-items: center; gap: 0.5rem;
+  }
+  .btn-primary {
+    background: var(--accent); color: #000; font-weight: 700;
+  }
+  .btn-primary:hover { background: #7affba; transform: translateY(-2px); }
+  .btn-ghost {
+    background: transparent; color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover { border-color: rgba(255,255,255,0.3); background: var(--surface); }
+
+  /* ── DEVICE MOCKUP ── */
+  .hero-device {
+    display: flex; justify-content: center; align-items: center;
+    animation: fadeUp 0.7s 0.15s ease both;
+  }
+  .device-wrap {
+    position: relative;
+    width: 320px; height: 320px;
+  }
+  .device-glow {
+    position: absolute; inset: -40px;
+    background: radial-gradient(circle at 50% 50%, rgba(76,255,160,0.12) 0%, transparent 70%);
+    animation: pulse 3s ease-in-out infinite;
+  }
+  .device {
+    position: relative;
+    width: 320px; height: 260px;
+    background: var(--bg3);
+    border: 2px solid rgba(255,255,255,0.12);
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 0 60px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.06);
+  }
+  .device-screen {
+    position: absolute; inset: 12px;
+    background: #000;
+    border-radius: 10px;
+    overflow: hidden;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .screen-face {
+    position: relative;
+    width: 90px; height: 90px;
+    margin-bottom: 12px;
+  }
+  .face-circle {
+    width: 90px; height: 90px;
+    border-radius: 50%;
+    background: transparent;
+    border: 2px solid rgba(76,255,160,0.2);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .face-inner {
+    position: relative;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 8px;
+  }
+  .face-eyes {
+    display: flex; gap: 18px;
+  }
+  .eye {
+    width: 6px; height: 6px;
+    background: #fff;
+    border-radius: 50%;
+    animation: blink 4s ease-in-out infinite;
+  }
+  .eye:nth-child(2) { animation-delay: 0.05s; }
+  .face-mouth {
+    width: 18px; height: 2px;
+    background: rgba(255,255,255,0.6);
+    border-radius: 1px;
+  }
+  /* arc progress */
+  .arc-ring {
+    position: absolute; inset: -5px;
+  }
+  .arc-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .arc-track { fill: none; stroke: rgba(255,255,255,0.06); stroke-width: 2.5; }
+  .arc-fill { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round;
+    stroke-dasharray: 263; stroke-dashoffset: 65;
+    animation: arcTick 20s linear infinite;
+  }
+
+  .screen-timer {
+    font-family: var(--font-mono); font-size: 1.8rem; font-weight: 700;
+    color: #fff; letter-spacing: 0.05em;
+    animation: timerTick 1s step-end infinite;
+  }
+  .screen-label {
+    font-family: var(--font-mono); font-size: 0.6rem;
+    color: var(--accent); letter-spacing: 0.1em; text-transform: uppercase;
+    margin-top: 6px;
+  }
+  .screen-bar {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    height: 24px; background: rgba(255,255,255,0.03);
+    border-top: 1px solid rgba(255,255,255,0.06);
+    display: flex; align-items: center; justify-content: space-around;
+    padding: 0 8px;
+  }
+  .screen-btn-label {
+    font-family: var(--font-mono); font-size: 0.5rem;
+    color: rgba(255,255,255,0.3); letter-spacing: 0.05em;
+  }
+
+  /* device buttons */
+  .device-btns {
+    position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 18px;
+  }
+  .d-btn {
+    width: 38px; height: 8px;
+    background: var(--bg3);
+    border-radius: 3px;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+
+  /* ── SECTION BASE ── */
+  section { padding: 6rem 3rem; }
+  .section-inner { max-width: 1200px; margin: 0 auto; }
+  .section-tag {
+    font-family: var(--font-mono); font-size: 0.72rem;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 1rem;
+  }
+  .section-tag::before { content: '// '; color: var(--accent); }
+  h2 {
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 3.5vw, 3.2rem);
+    font-weight: 800; letter-spacing: -0.03em;
+    line-height: 1.1; margin-bottom: 1.5rem;
+  }
+
+  /* ── STATS BAR ── */
+  .stats-bar {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    padding: 2.5rem 3rem;
+  }
+  .stats-inner {
+    max-width: 1200px; margin: 0 auto;
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 2rem; text-align: center;
+  }
+  .stat-item {}
+  .stat-num {
+    font-family: var(--font-display);
+    font-size: 2.4rem; font-weight: 800;
+    color: var(--accent); letter-spacing: -0.03em;
+  }
+  .stat-desc {
+    font-family: var(--font-mono); font-size: 0.72rem;
+    color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase;
+    margin-top: 0.3rem;
+  }
+
+  /* ── FEATURES GRID ── */
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden;
+    margin-top: 3rem;
+  }
+  .feat-card {
+    background: var(--bg2);
+    padding: 2rem 2rem;
+    transition: background 0.3s;
+    cursor: default;
+  }
+  .feat-card:hover { background: var(--surface); }
+  .feat-icon {
+    width: 44px; height: 44px;
+    background: rgba(76,255,160,0.08);
+    border: 1px solid rgba(76,255,160,0.2);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 1.2rem;
+    font-size: 1.3rem;
+  }
+  .feat-icon.yellow { background: rgba(255,217,70,0.08); border-color: rgba(255,217,70,0.2); }
+  .feat-icon.red { background: rgba(255,107,107,0.08); border-color: rgba(255,107,107,0.2); }
+  .feat-title {
+    font-family: var(--font-display);
+    font-size: 1.1rem; font-weight: 700;
+    margin-bottom: 0.6rem; letter-spacing: -0.02em;
+  }
+  .feat-desc { font-size: 0.92rem; color: var(--muted); line-height: 1.75; }
+
+  /* ── WORKFLOW ── */
+  .workflow {
+    background: var(--bg);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .workflow-steps {
+    margin-top: 3rem;
+    display: flex; flex-direction: column; gap: 0;
+  }
+  .wf-step {
+    display: grid; grid-template-columns: 80px 1fr;
+    gap: 2rem; align-items: start;
+    padding: 2rem 0;
+    border-bottom: 1px solid var(--border);
+    opacity: 0; transform: translateX(-20px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+  .wf-step.visible { opacity: 1; transform: none; }
+  .wf-step:last-child { border-bottom: none; }
+  .wf-num {
+    font-family: var(--font-display); font-size: 3.5rem;
+    font-weight: 800; color: rgba(76,255,160,0.15);
+    letter-spacing: -0.05em; line-height: 1;
+    padding-top: 4px;
+  }
+  .wf-content h3 {
+    font-family: var(--font-display); font-size: 1.4rem;
+    font-weight: 700; margin-bottom: 0.5rem; letter-spacing: -0.02em;
+  }
+  .wf-content p { color: var(--muted); font-size: 0.95rem; line-height: 1.8; }
+  .wf-tag {
+    display: inline-block; margin-top: 0.7rem;
+    font-family: var(--font-mono); font-size: 0.68rem;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 0.25rem 0.7rem; border-radius: 2px;
+  }
+  .tag-green { background: rgba(76,255,160,0.1); color: var(--accent); border: 1px solid rgba(76,255,160,0.2); }
+  .tag-yellow { background: rgba(255,217,70,0.1); color: var(--accent2); border: 1px solid rgba(255,217,70,0.2); }
+  .tag-red { background: rgba(255,107,107,0.1); color: var(--accent3); border: 1px solid rgba(255,107,107,0.2); }
+
+  /* ── TECH SPECS ── */
+  .tech {
+    background: var(--bg2);
+  }
+  .tech-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 3rem; margin-top: 3rem; align-items: start;
+  }
+  .spec-table { width: 100%; border-collapse: collapse; }
+  .spec-table tr { border-bottom: 1px solid var(--border); }
+  .spec-table tr:last-child { border-bottom: none; }
+  .spec-table td {
+    padding: 0.9rem 0;
+    font-size: 0.9rem;
+  }
+  .spec-table td:first-child {
+    font-family: var(--font-mono); font-size: 0.75rem;
+    color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase;
+    width: 40%; padding-right: 1rem;
+  }
+  .spec-table td:last-child { color: var(--text); }
+
+  .code-block {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.5rem;
+    font-family: var(--font-mono); font-size: 0.78rem;
+    color: #8be38b; line-height: 1.9;
+    overflow-x: auto;
+  }
+  .code-block .c { color: var(--muted); }
+  .code-block .kw { color: var(--accent2); }
+  .code-block .s { color: #e38b8b; }
+  .code-block .n { color: var(--accent); }
+
+  /* ── VOICE SECTION ── */
+  .voice-section {
+    background: var(--bg);
+  }
+  .voice-demo {
+    margin-top: 3rem;
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 2rem; align-items: center;
+  }
+  .voice-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px; padding: 2rem;
+  }
+  .voice-card h4 {
+    font-family: var(--font-mono); font-size: 0.75rem;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 1.2rem;
+  }
+  .voice-cmds {
+    display: flex; flex-direction: column; gap: 0.7rem;
+  }
+  .voice-cmd {
+    display: flex; align-items: center; gap: 1rem;
+    padding: 0.7rem 1rem;
+    background: rgba(0,0,0,0.3);
+    border-radius: 6px; border: 1px solid var(--border);
+  }
+  .cmd-mic {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: rgba(76,255,160,0.12);
+    border: 1px solid rgba(76,255,160,0.3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.8rem; flex-shrink: 0;
+  }
+  .cmd-text { font-size: 0.88rem; }
+  .cmd-text strong { color: var(--accent); font-family: var(--font-mono); font-weight: 400; }
+  .cmd-text span { color: var(--muted); font-size: 0.78rem; display: block; margin-top: 2px; }
+
+  .flow-chart {
+    background: var(--surface);
+    border: 1px solid var(--border); border-radius: 12px; padding: 2rem;
+  }
+  .flow-chart h4 {
+    font-family: var(--font-mono); font-size: 0.75rem;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 1.5rem;
+  }
+  .flow-nodes { display: flex; flex-direction: column; gap: 0; }
+  .flow-node {
+    display: flex; align-items: center; gap: 1rem;
+    padding: 0.6rem 0;
+  }
+  .fn-dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  }
+  .fn-dot.g { background: var(--accent); }
+  .fn-dot.y { background: var(--accent2); }
+  .fn-dot.r { background: var(--accent3); }
+  .fn-dot.m { background: var(--muted); }
+  .fn-label { font-family: var(--font-mono); font-size: 0.8rem; color: var(--text); }
+  .fn-arrow {
+    width: 1px; height: 22px;
+    background: var(--border); margin-left: 4px;
+  }
+
+  /* ── HARDWARE ── */
+  .hardware {
+    background: var(--bg3);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .hw-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 4rem; align-items: center; margin-top: 3rem;
+  }
+  .hw-diagram {
+    position: relative;
+    width: 100%; aspect-ratio: 1;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .hw-svg { width: 100%; max-width: 340px; }
+  .hw-list { display: flex; flex-direction: column; gap: 1.2rem; }
+  .hw-item {
+    display: flex; align-items: flex-start; gap: 1rem;
+    padding: 1rem 1.2rem;
+    background: var(--surface); border-radius: 8px;
+    border: 1px solid var(--border);
+    transition: border-color 0.2s;
+  }
+  .hw-item:hover { border-color: rgba(76,255,160,0.3); }
+  .hw-icon {
+    font-size: 1.3rem; flex-shrink: 0; margin-top: 2px;
+  }
+  .hw-info h4 {
+    font-family: var(--font-display); font-weight: 700;
+    font-size: 1rem; margin-bottom: 0.2rem;
+  }
+  .hw-info p { font-size: 0.85rem; color: var(--muted); line-height: 1.5; }
+
+  /* ── FOOTER ── */
+  footer {
+    background: var(--bg); padding: 3rem;
+    border-top: 1px solid var(--border);
+  }
+  .footer-inner {
+    max-width: 1200px; margin: 0 auto;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .footer-brand {
+    font-family: var(--font-display); font-weight: 800;
+    font-size: 1.1rem; color: var(--accent);
+  }
+  .footer-brand span { color: var(--muted); }
+  .footer-links { display: flex; gap: 2rem; list-style: none; }
+  .footer-links a {
+    font-family: var(--font-mono); font-size: 0.72rem;
+    color: var(--muted); text-decoration: none; letter-spacing: 0.05em;
+    text-transform: uppercase; transition: color 0.2s;
+  }
+  .footer-links a:hover { color: var(--accent); }
+  .footer-copy {
+    font-family: var(--font-mono); font-size: 0.68rem;
+    color: rgba(255,255,255,0.2); letter-spacing: 0.06em;
+  }
+
+  /* ── ANIMATIONS ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.6; transform: scale(1); }
+    50%       { opacity: 1; transform: scale(1.05); }
+  }
+  @keyframes blink {
+    0%, 92%, 100% { transform: scaleY(1); }
+    95%, 98% { transform: scaleY(0.1); }
+  }
+  @keyframes arcTick {
+    from { stroke-dashoffset: 263; }
+    to   { stroke-dashoffset: 0; }
+  }
+  @keyframes timerTick {
+    0% { content: "24:59"; }
+  }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--surface); border-radius: 2px; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 900px) {
+    nav { padding: 1rem 1.5rem; }
+    .nav-links { display: none; }
+    .hero { grid-template-columns: 1fr; padding: 7rem 1.5rem 3rem; }
+    .hero-device { order: -1; }
+    section { padding: 4rem 1.5rem; }
+    .stats-inner { grid-template-columns: repeat(2, 1fr); }
+    .features-grid { grid-template-columns: 1fr; }
+    .tech-grid, .voice-demo, .hw-grid { grid-template-columns: 1fr; }
+    .footer-inner { flex-direction: column; gap: 1.5rem; text-align: center; }
+    .footer-links { justify-content: center; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">Pomo<span>Core</span></div>
+  <ul class="nav-links">
+    <li><a href="#features">功能</a></li>
+    <li><a href="#voice">语音</a></li>
+    <li><a href="#hardware">硬件</a></li>
+    <li><a href="#tech">技术</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<div class="z">
+<div class="hero section-inner">
+  <div>
+    <div class="hero-tag">M5Stack Core2 · Arduino · 百度 AI</div>
+    <h1>专注计时，<br>从未如此<em>智能</em></h1>
+    <p class="hero-sub">软硬件深度融合的番茄工作法设备。语音控制、StackChan 表情反馈、百度 AI 语音识别，让每一次专注都更有仪式感。</p>
+    <div class="hero-cta">
+      <a href="#features" class="btn btn-primary">探索功能 →</a>
+      <a href="#tech" class="btn btn-ghost">查看代码</a>
+    </div>
+  </div>
+  <div class="hero-device">
+    <div class="device-wrap">
+      <div class="device-glow"></div>
+      <div class="device">
+        <div class="device-screen">
+          <div class="screen-face">
+            <div class="arc-ring">
+              <svg viewBox="0 0 100 100">
+                <circle class="arc-track" cx="50" cy="50" r="42"/>
+                <circle class="arc-fill" cx="50" cy="50" r="42"/>
+              </svg>
+            </div>
+            <div class="face-circle">
+              <div class="face-inner">
+                <div class="face-eyes">
+                  <div class="eye"></div>
+                  <div class="eye"></div>
+                </div>
+                <div class="face-mouth"></div>
+              </div>
+            </div>
+          </div>
+          <div class="screen-timer" id="timer-disp">24:59</div>
+          <div class="screen-label">Focus #1</div>
+          <div class="screen-bar">
+            <span class="screen-btn-label">[A] Pause</span>
+            <span class="screen-btn-label">[B] Stats</span>
+            <span class="screen-btn-label">[C] Setup</span>
+          </div>
+        </div>
+        <div class="device-btns">
+          <div class="d-btn"></div>
+          <div class="d-btn"></div>
+          <div class="d-btn"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- STATS BAR -->
+<div class="stats-bar z">
+  <div class="stats-inner">
+    <div class="stat-item">
+      <div class="stat-num">3+</div>
+      <div class="stat-desc">显示风格</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">9</div>
+      <div class="stat-desc">时长预设</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">16k</div>
+      <div class="stat-desc">麦克风采样率</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">百度</div>
+      <div class="stat-desc">AI 语音引擎</div>
+    </div>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section id="features" class="z">
+  <div class="section-inner">
+    <div class="section-tag">features</div>
+    <h2>三屏风格，<br>一键切换</h2>
+    <div class="features-grid">
+      <div class="feat-card">
+        <div class="feat-icon">🤖</div>
+        <div class="feat-title">StackChan 表情反馈</div>
+        <div class="feat-desc">可爱机器人脸随计时状态变化——专注时严肃，休息时放松，暂停时眨眼，让枯燥的倒计时变得有温度。</div>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon yellow">⏱</div>
+        <div class="feat-title">进度弧可视化</div>
+        <div class="feat-desc">双线加粗圆弧实时呈现剩余比例，颜色语义分明：专注绿、短休黄、长休橙，一眼掌握状态。</div>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon red">📊</div>
+        <div class="feat-title">每周专注统计</div>
+        <div class="feat-desc">内置柱状图记录七天专注次数，今日高亮，数据存入 NVS Flash，重启不丢失。</div>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">🎵</div>
+        <div class="feat-title">旋律完成提示</div>
+        <div class="feat-desc">自定义 7 音节旋律在专注结束时播放，比单调蜂鸣更有成就感，同时可选 Crescendo 渐强模式。</div>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon yellow">💤</div>
+        <div class="feat-title">屏保节能</div>
+        <div class="feat-desc">30 秒无操作自动降低亮度至 0，任意按键或触摸唤醒，延长 M5Stack 屏幕寿命。</div>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon red">⚙️</div>
+        <div class="feat-title">持久化设置</div>
+        <div class="feat-desc">时长、显示风格、铃声偏好写入 NVS，断电后恢复上次配置，无需重新设置。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- WORKFLOW -->
+<section class="workflow z">
+  <div class="section-inner">
+    <div class="section-tag">workflow</div>
+    <h2>番茄工作法<br>流程一览</h2>
+    <div class="workflow-steps">
+      <div class="wf-step">
+        <div class="wf-num">01</div>
+        <div class="wf-content">
+          <h3>设定专注时长</h3>
+          <p>按 [C] 进入设置菜单，[A] 切换时长选项（5秒测试 / 5~60分钟），[B] 跳转下一设置项，[C] 保存并返回。</p>
+          <span class="wf-tag tag-green">BtnC · 设置</span>
+        </div>
+      </div>
+      <div class="wf-step">
+        <div class="wf-num">02</div>
+        <div class="wf-content">
+          <h3>开始 / 暂停 / 恢复</h3>
+          <p>主界面按 [A] 一键开始计时；专注中再按暂停，暂停中再按恢复，累计暂停时间精确计入偏移量。</p>
+          <span class="wf-tag tag-green">BtnA · 控制</span>
+        </div>
+      </div>
+      <div class="wf-step">
+        <div class="wf-num">03</div>
+        <div class="wf-content">
+          <h3>语音命令（长按 A）</h3>
+          <p>长按 [A] 激活麦克风录音，说出「开始二十五分钟」或「start 25 minutes」，百度 ASR 识别后自动启动对应时长。也可说「停止」终止当前计时。</p>
+          <span class="wf-tag tag-yellow">BtnA Hold · 语音</span>
+        </div>
+      </div>
+      <div class="wf-step">
+        <div class="wf-num">04</div>
+        <div class="wf-content">
+          <h3>休息 & 循环</h3>
+          <p>每完成 1 次专注自动进入短休（5 分钟），每 4 次专注触发长休（15 分钟），百度 TTS 语音播报当前状态，闭眼休息也不会错过提醒。</p>
+          <span class="wf-tag tag-red">自动 · 循环</span>
+        </div>
+      </div>
+      <div class="wf-step">
+        <div class="wf-num">05</div>
+        <div class="wf-content">
+          <h3>查看本周统计</h3>
+          <p>按 [B] 切换至统计图界面，七天柱状图清晰呈现当日进度，今日列黄色高亮。任意按键或触摸返回。</p>
+          <span class="wf-tag tag-green">BtnB · 统计</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- VOICE -->
+<section id="voice" class="voice-section z">
+  <div class="section-inner">
+    <div class="section-tag">voice control</div>
+    <h2>语音命令，<br>双语支持</h2>
+    <div class="voice-demo">
+      <div class="voice-card">
+        <h4>支持的指令示例</h4>
+        <div class="voice-cmds">
+          <div class="voice-cmd">
+            <div class="cmd-mic">🎙</div>
+            <div class="cmd-text">
+              <strong>「开始二十五分钟」</strong>
+              <span>中文数字识别 → 25 分钟专注</span>
+            </div>
+          </div>
+          <div class="voice-cmd">
+            <div class="cmd-mic">🎙</div>
+            <div class="cmd-text">
+              <strong>「start 25 minutes」</strong>
+              <span>英文识别 → 25 min focus</span>
+            </div>
+          </div>
+          <div class="voice-cmd">
+            <div class="cmd-mic">🎙</div>
+            <div class="cmd-text">
+              <strong>「停止 / stop」</strong>
+              <span>立即停止当前计时</span>
+            </div>
+          </div>
+          <div class="voice-cmd">
+            <div class="cmd-mic">🎙</div>
+            <div class="cmd-text">
+              <strong>「开始四十五分钟」</strong>
+              <span>长词优先解析，精准识别</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="flow-chart">
+        <h4>语音识别流程</h4>
+        <div class="flow-nodes">
+          <div class="flow-node"><div class="fn-dot g"></div><div class="fn-label">长按 BtnA → 麦克风录音（最长5秒）</div></div>
+          <div class="fn-arrow"></div>
+          <div class="flow-node"><div class="fn-dot y"></div><div class="fn-label">静音 800ms 自动停止录音</div></div>
+          <div class="fn-arrow"></div>
+          <div class="flow-node"><div class="fn-dot g"></div><div class="fn-label">PCM 16kHz → 百度 ASR API</div></div>
+          <div class="fn-arrow"></div>
+          <div class="flow-node"><div class="fn-dot y"></div><div class="fn-label">解析 JSON → 提取分钟数</div></div>
+          <div class="fn-arrow"></div>
+          <div class="flow-node"><div class="fn-dot g"></div><div class="fn-label">百度 TTS 播报确认语音</div></div>
+          <div class="fn-arrow"></div>
+          <div class="flow-node"><div class="fn-dot r"></div><div class="fn-label">WiFi 离线 → 节奏蜂鸣 fallback</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HARDWARE -->
+<section id="hardware" class="hardware z">
+  <div class="section-inner">
+    <div class="section-tag">hardware</div>
+    <h2>M5Stack Core2<br>全栈整合</h2>
+    <div class="hw-grid">
+      <div class="hw-diagram">
+        <svg class="hw-svg" viewBox="0 0 340 320" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- device body -->
+          <rect x="50" y="20" width="240" height="200" rx="16" fill="#18181f" stroke="rgba(255,255,255,0.1)" stroke-width="1.5"/>
+          <!-- screen -->
+          <rect x="66" y="34" width="208" height="160" rx="8" fill="#000"/>
+          <!-- screen content - face -->
+          <circle cx="170" cy="94" r="40" fill="none" stroke="rgba(76,255,160,0.2)" stroke-width="1.5"/>
+          <circle cx="155" cy="88" r="4" fill="#fff"/>
+          <circle cx="185" cy="88" r="4" fill="#fff"/>
+          <line x1="161" y1="102" x2="179" y2="102" stroke="rgba(255,255,255,0.6)" stroke-width="2" stroke-linecap="round"/>
+          <!-- arc -->
+          <circle cx="170" cy="94" r="52" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="2.5"/>
+          <path d="M170 42 A52 52 0 1 1 118 94" stroke="#4cffa0" stroke-width="2.5" stroke-linecap="round"/>
+          <!-- timer text -->
+          <text x="170" y="164" text-anchor="middle" fill="white" font-family="monospace" font-size="11" font-weight="700">24:59</text>
+          <!-- buttons bottom -->
+          <rect x="84" y="232" width="52" height="10" rx="4" fill="#1e1e28" stroke="rgba(255,255,255,0.08)"/>
+          <rect x="144" y="232" width="52" height="10" rx="4" fill="#1e1e28" stroke="rgba(255,255,255,0.08)"/>
+          <rect x="204" y="232" width="52" height="10" rx="4" fill="#1e1e28" stroke="rgba(255,255,255,0.08)"/>
+          <!-- labels -->
+          <text x="110" y="258" text-anchor="middle" fill="rgba(76,255,160,0.7)" font-family="monospace" font-size="9">[A]</text>
+          <text x="170" y="258" text-anchor="middle" fill="rgba(76,255,160,0.7)" font-family="monospace" font-size="9">[B]</text>
+          <text x="230" y="258" text-anchor="middle" fill="rgba(76,255,160,0.7)" font-family="monospace" font-size="9">[C]</text>
+          <!-- connector lines -->
+          <line x1="110" y1="258" x2="62" y2="285" stroke="rgba(76,255,160,0.3)" stroke-width="1" stroke-dasharray="3,3"/>
+          <line x1="170" y1="258" x2="170" y2="295" stroke="rgba(255,217,70,0.3)" stroke-width="1" stroke-dasharray="3,3"/>
+          <line x1="230" y1="258" x2="278" y2="285" stroke="rgba(76,255,160,0.3)" stroke-width="1" stroke-dasharray="3,3"/>
+          <text x="62" y="298" text-anchor="middle" fill="rgba(76,255,160,0.6)" font-family="monospace" font-size="8">开始/暂停</text>
+          <text x="170" y="308" text-anchor="middle" fill="rgba(255,217,70,0.6)" font-family="monospace" font-size="8">统计</text>
+          <text x="278" y="298" text-anchor="middle" fill="rgba(76,255,160,0.6)" font-family="monospace" font-size="8">设置</text>
+        </svg>
+      </div>
+      <div class="hw-list">
+        <div class="hw-item">
+          <div class="hw-icon">📱</div>
+          <div class="hw-info">
+            <h4>2.0" IPS 触摸屏</h4>
+            <p>320×240 全彩显示，电容触摸支持点击返回，高亮度适合桌面使用。</p>
+          </div>
+        </div>
+        <div class="hw-item">
+          <div class="hw-icon">🎙</div>
+          <div class="hw-info">
+            <h4>内置 PDM 麦克风</h4>
+            <p>16kHz 单声道录音，配合 RMS 静音检测，5 秒内完成语音采样。</p>
+          </div>
+        </div>
+        <div class="hw-item">
+          <div class="hw-icon">🔊</div>
+          <div class="hw-info">
+            <h4>内置扬声器</h4>
+            <p>PCM 16kHz 直推播放 TTS 语音，音量可软件调节，无需外接音频设备。</p>
+          </div>
+        </div>
+        <div class="hw-item">
+          <div class="hw-icon">📡</div>
+          <div class="hw-info">
+            <h4>ESP32 双核 + WiFi</h4>
+            <p>240MHz 双核，内置 WiFi 连接百度 AI Cloud，PSRAM 提供 5 秒录音缓冲。</p>
+          </div>
+        </div>
+        <div class="hw-item">
+          <div class="hw-icon">💾</div>
+          <div class="hw-info">
+            <h4>NVS Flash 持久化</h4>
+            <p>使用 Preferences 库将设置与统计写入 Flash，掉电数据不丢失。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TECH -->
+<section id="tech" class="tech z">
+  <div class="section-inner">
+    <div class="section-tag">tech specs</div>
+    <h2>技术规格</h2>
+    <div class="tech-grid">
+      <table class="spec-table">
+        <tr><td>主控</td><td>ESP32-D0WDQ6 / 240MHz 双核</td></tr>
+        <tr><td>屏幕</td><td>2.0" IPS 320×240 电容触摸</td></tr>
+        <tr><td>麦克风采样</td><td>PDM 16,000 Hz 单声道</td></tr>
+        <tr><td>录音时长</td><td>最长 5 秒（PSRAM 缓冲）</td></tr>
+        <tr><td>静音检测</td><td>RMS 阈值 1500 + 800ms 超时</td></tr>
+        <tr><td>ASR 引擎</td><td>百度 vop.baidu.com dev_pid=1537</td></tr>
+        <tr><td>TTS 引擎</td><td>百度 tsn.baidu.com PCM 16kHz</td></tr>
+        <tr><td>番茄循环</td><td>4× 专注 → 长休（可配置）</td></tr>
+        <tr><td>短休时长</td><td>5 分钟</td></tr>
+        <tr><td>长休时长</td><td>15 分钟</td></tr>
+        <tr><td>屏保超时</td><td>30 秒无操作</td></tr>
+        <tr><td>持久化</td><td>ESP32 NVS（Preferences）</td></tr>
+      </table>
+      <div class="code-block">
+<span class="c">// 关键依赖</span>
+<span class="kw">#include</span> <span class="s">&lt;M5Unified.h&gt;</span>
+<span class="kw">#include</span> <span class="s">&lt;Preferences.h&gt;</span>
+<span class="kw">#include</span> <span class="s">&lt;WiFi.h&gt;</span>
+<span class="kw">#include</span> <span class="s">&lt;HTTPClient.h&gt;</span>
+
+<span class="c">// 录音参数</span>
+<span class="kw">const</span> <span class="n">int</span> MIC_RATE    = <span class="n">16000</span>;
+<span class="kw">const</span> <span class="n">int</span> MIC_BUF_N   = <span class="n">512</span>;
+<span class="kw">const</span> <span class="n">int32_t</span> VOICE_THR = <span class="n">1500</span>;
+
+<span class="c">// 番茄参数</span>
+<span class="kw">const</span> <span class="n">int</span> LONG_INTERVAL = <span class="n">4</span>;
+<span class="kw">const</span> <span class="n">uint32_t</span> SHORT_BRK_MS
+              = <span class="n">5</span> * 60 * 1000UL;
+<span class="kw">const</span> <span class="n">uint32_t</span> LONG_BRK_MS
+              = <span class="n">15</span> * 60 * 1000UL;
+
+<span class="c">// 睡眠超时</span>
+<span class="kw">const</span> <span class="n">uint32_t</span> SLEEP_TIMEOUT_MS
+              = <span class="n">30000</span>UL;
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="z">
+  <div class="footer-inner">
+    <div class="footer-brand">Pomo<span>Core</span></div>
+    <ul class="footer-links">
+      <li><a href="#features">功能</a></li>
+      <li><a href="#voice">语音</a></li>
+      <li><a href="#hardware">硬件</a></li>
+      <li><a href="#tech">规格</a></li>
+    </ul>
+    <div class="footer-copy">M5Stack Core2 · ESP32 · 百度 AI</div>
+  </div>
+</footer>
+
+<script>
+  // 倒计时动画
+  const timerEl = document.getElementById('timer-disp');
+  let secs = 24 * 60 + 59;
+  setInterval(() => {
+    secs = secs > 0 ? secs - 1 : 25 * 60;
+    const m = String(Math.floor(secs / 60)).padStart(2, '0');
+    const s = String(secs % 60).padStart(2, '0');
+    timerEl.textContent = m + ':' + s;
+  }, 1000);
+
+  // Scroll reveal for wf-steps
+  const steps = document.querySelectorAll('.wf-step');
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach((e, i) => {
+      if (e.isIntersecting) {
+        setTimeout(() => e.target.classList.add('visible'), i * 80);
+      }
+    });
+  }, { threshold: 0.15 });
+  steps.forEach(s => obs.observe(s));
+</script>
+</body>
+</html>
